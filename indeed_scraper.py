@@ -18,10 +18,10 @@ def get_job_posting_date(card):
         elif 'yesterday' in posted_text.lower():
             return datetime.now().date() - timedelta(days=1)
         else:
-            # Find all numbers in the posted_text, assuming that the first number is the number of days
+            # Format 'X days ago'          
             numbers = [int(s) for s in posted_text.split() if s.isdigit()]
             if numbers:
-                # Assuming the format 'X days ago', where X is the first number found
+
                 return datetime.now().date() - timedelta(days=numbers[0])
 
     return None
@@ -30,6 +30,7 @@ def get_job_posting_date(card):
 def scrape_jobs(job_titles, locations, existing_urls):
     scraper = cloudscraper.create_scraper()
     new_jobs_info = []
+    exclude_keywords = ["senior", "lead", "manager", "director", "Sr"]
 
     for job_title in job_titles:
         for location in locations:
@@ -49,9 +50,12 @@ def scrape_jobs(job_titles, locations, existing_urls):
                     link_tag = TITLE.find('a') if TITLE else None
                     link = link_tag['href'] if link_tag else None
 
+                    if any(exclude_keyword.lower() in title.lower() for exclude_keyword in exclude_keywords):
+                        continue  # Skip adding this job if it contains excluded keywords
+
                     if link:
                         full_url = f'https://ca.indeed.com{link}'
-                        if not existing_df['url'].str.contains(full_url).any():
+                        if full_url not in existing_urls:
                             # job_description = get_job_description(full_url, scraper) # This line is commented out
                             pass
                         else:
@@ -72,67 +76,39 @@ def scrape_jobs(job_titles, locations, existing_urls):
                         'company name': company_name,
                         'company location': company_location,
                         'url': full_url,
-                        # 'description': job_description # This line is commented out
+                        # 'description': job_description # Commented out, not being used atm
                         'posting_date': posting_date,
                         'already_applied': 'No'
                     }
                     new_jobs_info.append(data)
-
-    if new_jobs_info:
-        new_jobs_df = pd.DataFrame(new_jobs_info)
-        updated_df = pd.concat([existing_df, new_jobs_df], ignore_index=True, sort=False)
-        updated_df = updated_df.drop_duplicates(subset=['url'], keep='first')
-    else:
-        updated_df = existing_df
-
     return new_jobs_info
+
 
 if __name__ == "__main__":
     job_titles = [
-    "data intern",
-    "software intern",
-    "programming intern",
-    "junior developer",
-    "machine learning intern",
-    "Data Analyst Intern",
-    "Junior Data Scientist",
-    "Entry-Level Software Engineer",
-    "Web Developer Intern",
-    "IT Support Technician",
-    "System Administrator Trainee",
-    "QA Analyst Trainee",
-    "DevOps Intern",
-    "Business Intelligence Intern",
-    "Cloud Support Associate",
-    "Entry-Level UX/UI Designer",
-    "Application Support Analyst",
-    "Technology Consultant Associate",
-    "Junior Product Manager",
-    "Front-End Developer Intern",
-    "Back-End Developer Intern",
-    "Mobile Application Developer Intern",
-    "Junior Database Administrator",
-    "Artificial Intelligence Intern",
-    "Embedded Systems Engineer Trainee",
-    "SEO Specialist Trainee",
-]
+    "junior web developer", "web developer intern",
+    "junior front end developer", "front end developer intern",
+    "junior back end developer", "back end developer intern",
+    "junior software developer", "software developer intern",
+    "entry-level machine learning engineer", "machine learning intern",
+    "junior data scientist", "data scientist intern",
+    "entry-level data analyst", "data analyst intern",
+    "junior data engineer", "data engineer intern",
+    "entry-level database administrator", "database administrator intern"
+    ] 
+
     locations = ["Mississauga, ON", "Toronto, ON"] 
 
     try:
         existing_df = pd.read_csv('job_listings.csv')
-        # Ensure the 'already_applied' column exists
         if 'already_applied' not in existing_df.columns:
             existing_df['already_applied'] = 'No'
     except FileNotFoundError:
         existing_df = pd.DataFrame(columns=['title', 'company name', 'company location', 'url', 'posting_date', 'already_applied'])
 
-    # Get URLs to check for duplicates
+    # Get existing URLs to check for duplicates.
     existing_urls = existing_df['url'].tolist()
-
-    # Scrape the jobs
     new_jobs_info = scrape_jobs(job_titles, locations, existing_urls)
-
-    # Create a DataFrame from the scraped data
     new_jobs_df = pd.DataFrame(new_jobs_info)
 
     # Append the new jobs to the existing DataFrame if they are not already present
@@ -142,7 +118,9 @@ if __name__ == "__main__":
     else:
         combined_df = existing_df
 
-    # Save the combined DataFrame to CSV
+    # Convert 'posting_date' to datetime format for accurate sorting
+    combined_df['posting_date'] = pd.to_datetime(combined_df['posting_date'])
+    combined_df = combined_df.sort_values(by='posting_date', ascending=False)
     combined_df.to_csv('job_listings.csv', index=False)
 
 
