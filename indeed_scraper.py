@@ -62,6 +62,5 @@ if __name__ == "__main__":
     job_title = "data intern"
     location = "Mississauga, ON"
     df = scrape_jobs(job_title, location)
-    print(df)
     # Optionally save the DataFrame to a CSV file
     df.to_csv('job_listings.csv', index=False)
